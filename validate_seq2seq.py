@@ -287,7 +287,13 @@ def main():
     parser.add_argument("--test-split", type=float, default=0.10)
     parser.add_argument("--pair-limit", type=int, default=None)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--random-examples", type=int, default=5)
+    parser.add_argument("--random-examples", type=int, default=10)
+    parser.add_argument(
+        "--manual-examples",
+        nargs="*",
+        default=None,
+        help="Optional extra sentences to translate. Metrics and random examples still use the held-out test split.",
+    )
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -329,19 +335,6 @@ def main():
     print(f"\nTest loss: {test_loss:.4f}")
     print(f"BLEU Score: {bleu:.4f} ({bleu * 100:.2f}%)")
 
-    fixed_examples = [
-        "I am hungry.",
-        "Good morning.",
-        "Where is the station?",
-        "Tom is a good student.",
-        "She loves to read books.",
-        "I do not understand.",
-    ]
-    print("\n-- Fixed Examples --")
-    for sentence in fixed_examples:
-        print(f"EN:   {sentence}")
-        print(f"PRED: {translate(model, sentence, eng_vocab, ger_idx2word, args.max_len, device)}\n")
-
     if args.random_examples > 0:
         print_random_examples(
             model,
@@ -353,6 +346,13 @@ def main():
             args.random_examples,
             args.seed,
         )
+
+    if args.manual_examples:
+        print("\n-- Manual Demo Examples --")
+        print("These are not used for validation metrics.")
+        for sentence in args.manual_examples:
+            print(f"EN:   {sentence}")
+            print(f"PRED: {translate(model, sentence, eng_vocab, ger_idx2word, args.max_len, device)}\n")
 
 
 if __name__ == "__main__":

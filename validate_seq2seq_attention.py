@@ -478,7 +478,8 @@ def print_attention_diagnostics(sentence, translation, src_tokens, target_labels
 
 
 def print_fixed_examples(model, examples, eng_vocab, ger_idx2word, max_len, device):
-    print("\n-- Fixed Examples --")
+    print("\n-- Manual Demo Examples --")
+    print("These are not used for validation metrics.")
     for sentence in examples:
         translation, _, target_labels, _ = translate_with_attention(
             model,
@@ -515,6 +516,12 @@ def print_random_examples(model, pairs, eng_vocab, ger_idx2word, max_len, device
         print(f"RAW:  {' '.join(target_labels)}\n")
 
 
+def select_test_sentences(pairs, count, seed):
+    rng = random.Random(seed)
+    examples = rng.sample(pairs, k=min(count, len(pairs)))
+    return [" ".join(eng) for eng, ger in examples]
+
+
 def main():
     parser = argparse.ArgumentParser(description="Validate a trained LSTM seq2seq attention model.")
     parser.add_argument("--data", default="deu.txt")
@@ -532,18 +539,25 @@ def main():
     parser.add_argument("--test-split", type=float, default=0.10)
     parser.add_argument("--pair-limit", type=int, default=None)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--random-examples", type=int, default=5)
+    parser.add_argument("--random-examples", type=int, default=10)
     parser.add_argument("--heatmap-dir", default="attention_maps")
+    parser.add_argument(
+        "--heatmap-count",
+        type=int,
+        default=5,
+        help="Number of held-out test examples to use for heatmaps when --heatmap-sentences is omitted.",
+    )
     parser.add_argument(
         "--heatmap-sentences",
         nargs="*",
-        default=[
-            "Where is the station?",
-            "I am hungry.",
-            "Tom is a good student.",
-            "She loves to read books.",
-            "I do not understand.",
-        ],
+        default=None,
+        help="Optional manual heatmap sentences. If omitted, heatmaps are sampled from the held-out test split.",
+    )
+    parser.add_argument(
+        "--manual-examples",
+        nargs="*",
+        default=None,
+        help="Optional extra sentences to translate. Metrics and random examples still use the held-out test split.",
     )
     args = parser.parse_args()
 
@@ -586,16 +600,6 @@ def main():
     print(f"\nTest loss: {test_loss:.4f}")
     print(f"BLEU Score: {bleu:.4f} ({bleu * 100:.2f}%)")
 
-    fixed_examples = [
-        "I am hungry.",
-        "Good morning.",
-        "Where is the station?",
-        "Tom is a good student.",
-        "She loves to read books.",
-        "I do not understand.",
-    ]
-    print_fixed_examples(model, fixed_examples, eng_vocab, ger_idx2word, args.max_len, device)
-
     if args.random_examples > 0:
         print_random_examples(
             model,
@@ -608,8 +612,18 @@ def main():
             args.seed,
         )
 
+    if args.manual_examples:
+        print_fixed_examples(model, args.manual_examples, eng_vocab, ger_idx2word, args.max_len, device)
+
     print("\n-- Attention Heatmaps --")
-    for i, sentence in enumerate(args.heatmap_sentences, start=1):
+    if args.heatmap_sentences:
+        heatmap_sentences = args.heatmap_sentences
+        print("Using manually provided heatmap sentences. These are not used for validation metrics.")
+    else:
+        heatmap_sentences = select_test_sentences(test_pairs, args.heatmap_count, args.seed + 1)
+        print("Using held-out test split examples for heatmaps.")
+
+    for i, sentence in enumerate(heatmap_sentences, start=1):
         save_attention_heatmap(
             sentence,
             model,
